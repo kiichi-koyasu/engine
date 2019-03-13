@@ -215,6 +215,10 @@ let EditBoxImpl = cc.Class({
     },
 
     setFontSize (fontSize) {
+        if (cc.sys.isMobile) {
+            const frameSize = cc.view.getFrameSize();
+            fontSize = Math.round(Math.min(frameSize.width, frameSize.height) / 15);   // 横持ちだとキーボードで5, 6割画面が埋まってしまうので、入力1行に使えるのはこれくらい？
+        }
         this._edFontSize = fontSize || this._edFontSize;
         this._edTxt && (this._edTxt.style.fontSize = this._edFontSize + 'px');
     },
@@ -225,6 +229,12 @@ let EditBoxImpl = cc.Class({
     },
     
     setSize (width, height) {
+        if (cc.sys.isMobile) {
+            width = window.innerWidth;  // 横はブラウザサイズに合わせる
+            this._edTxt.style.height = '1px';   // どれくらい表示領域が必要か計算させる
+            height = this._edTxt.scrollHeight;  // 高さは基本的に入力文字が見えるように
+            height = Math.max(height, (this._edFontSize + 4));    // 文字列なくても1行分の高さは見えるように
+        }
         this._size.width = width;
         this._size.height = height;
         this._updateSize(width, height);
@@ -235,10 +245,11 @@ let EditBoxImpl = cc.Class({
     },
 
     update () {
-        // TODO: find better way to update matrix
-        // if (this._editing) {
-            this._updateMatrix();
-        // }
+        if (cc.sys.isMobile) {
+            this._updateStyleForMobile();
+            return;
+        }
+        this._updateMatrix();
     },
 
     clear () {
@@ -349,6 +360,16 @@ let EditBoxImpl = cc.Class({
     
         edTxt.style.width = newWidth + 'px';
         edTxt.style.height = newHeight + 'px';
+    },
+
+    _updateStyleForMobile() {
+        if (!this._edTxt) return;
+
+        const width = window.innerWidth;  // 横はブラウザサイズに合わせる
+        this._size.width = width;
+        this._edTxt.style.width = width + 'px';
+
+        this._edTxt.style.maxHeight = (window.innerHeight * 0.75) + 'px';    // 入力終わった後触れる領域を残しておく
     },
 
     _updateMatrix () {
@@ -523,6 +544,9 @@ function registerInputEventListener (tmpEdTxt, editBoxImpl, isTextarea) {
     tmpEdTxt.addEventListener('compositionend', cbs.compositionend);
 
     cbs.input = function () {
+        if (cc.sys.isMobile) {
+            editBoxImpl.setSize(editBoxImpl._size.width, editBoxImpl._size.height);
+        }
         if (inputLock) {
             return;
         }
@@ -587,7 +611,15 @@ _p._createDomInput = function () {
     tmpEdTxt.style.fontSize = this._edFontSize + 'px';
     tmpEdTxt.style.color = '#000000';
     tmpEdTxt.style.border = 0;
-    tmpEdTxt.style.background = 'transparent';
+    if (cc.sys.isMobile) {
+        tmpEdTxt.style.background = '#ffffff';
+        tmpEdTxt.style.left = "0px";
+        tmpEdTxt.style.position = "fixed";
+    } else {
+        tmpEdTxt.style.background = 'transparent';
+        tmpEdTxt.style.left = LEFT_PADDING + "px";
+        tmpEdTxt.style.position = "absolute";
+    }
     tmpEdTxt.style.width = '100%';
     tmpEdTxt.style.height = '100%';
     tmpEdTxt.style.active = 0;
@@ -595,9 +627,7 @@ _p._createDomInput = function () {
     tmpEdTxt.style.padding = '0';
     tmpEdTxt.style.textTransform = 'uppercase';
     tmpEdTxt.style.display = 'none';
-    tmpEdTxt.style.position = "absolute";
     tmpEdTxt.style.bottom = "0px";
-    tmpEdTxt.style.left = LEFT_PADDING + "px";
     tmpEdTxt.style['-moz-appearance'] = 'textfield';
     tmpEdTxt.style.className = "cocosEditBox";
     tmpEdTxt.style.fontFamily = 'Arial';
@@ -615,7 +645,15 @@ _p._createDomTextArea = function () {
     tmpEdTxt.style.fontSize = this._edFontSize + 'px';
     tmpEdTxt.style.color = '#000000';
     tmpEdTxt.style.border = 0;
-    tmpEdTxt.style.background = 'transparent';
+    if (cc.sys.isMobile) {
+        tmpEdTxt.style.background = '#ffffff';
+        tmpEdTxt.style.left = "0px";
+        tmpEdTxt.style.position = "fixed";
+    } else {
+        tmpEdTxt.style.background = 'transparent';
+        tmpEdTxt.style.left = LEFT_PADDING + "px";
+        tmpEdTxt.style.position = "absolute";
+    }
     tmpEdTxt.style.width = '100%';
     tmpEdTxt.style.height = '100%';
     tmpEdTxt.style.active = 0;
@@ -625,9 +663,7 @@ _p._createDomTextArea = function () {
     tmpEdTxt.style.textTransform = 'uppercase';
     tmpEdTxt.style.overflow_y = 'scroll';
     tmpEdTxt.style.display = 'none';
-    tmpEdTxt.style.position = "absolute";
     tmpEdTxt.style.bottom = "0px";
-    tmpEdTxt.style.left = LEFT_PADDING + "px";
     tmpEdTxt.style.className = "cocosEditBox";
     tmpEdTxt.style.fontFamily = 'Arial';
 
@@ -637,7 +673,11 @@ _p._createDomTextArea = function () {
 };
 
 _p._addDomToGameContainer = function () {
-    cc.game.container.appendChild(this._edTxt);
+    if (cc.sys.isMobile) {
+        cc.game.frame.appendChild(this._edTxt);
+    } else {
+        cc.game.container.appendChild(this._edTxt);
+    }
 };
 
 _p.removeDom = function () {
@@ -658,10 +698,18 @@ _p.removeDom = function () {
         cbs.keypress = null;
         cbs.blur = null;
 
-        let hasChild = utils.contains(cc.game.container, edTxt);
-        if (hasChild) {
-            cc.game.container.removeChild(edTxt);
+        if (cc.sys.isMobile) {
+            const hasChild = utils.contains(cc.game.frame, edTxt);
+            if (hasChild) {
+                cc.game.frame.removeChild(edTxt);
+            }
+        } else {
+            const hasChild = utils.contains(cc.game.container, edTxt);
+            if (hasChild) {
+                cc.game.container.removeChild(edTxt);
+            }    
         }
+
     }
     this._edTxt = null;
 };
