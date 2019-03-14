@@ -225,7 +225,11 @@ let EditBoxImpl = cc.Class({
     
     setFontColor (color) {
         this._textColor = color;
-        this._edTxt && (this._edTxt.style.color = color.toCSS('rgba'));
+        if (cc.sys.isMobile) {
+            this._edTxt && (this._edTxt.style.color = '#000000');
+        } else {
+            this._edTxt && (this._edTxt.style.color = color.toCSS('rgba'));
+        }
     },
     
     setSize (width, height) {
@@ -563,6 +567,7 @@ function registerInputEventListener (tmpEdTxt, editBoxImpl, isTextarea) {
         }
 
         if (cc.sys.isMobile) {
+            this.style.color = '#000000';
             editBoxImpl._beginEditingOnMobile();
         }
 
